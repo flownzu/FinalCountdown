@@ -20,7 +20,7 @@ namespace FinalCountdown
 
         static async Task Main(string[] args)
         {
-            AuthorizationCodeAuth authorizationCodeAuth = new AuthorizationCodeAuth(args[0], args[1], "http://localhost:8800", "http://localhost:8800", Scope.Streaming);
+            AuthorizationCodeAuth authorizationCodeAuth = new AuthorizationCodeAuth("http://flownzu.com/FinalCountdown/auth", "http://localhost:8800", Scope.Streaming, "123");
             authorizationCodeAuth.Start();
             authorizationCodeAuth.AuthReceived += AuthorizationCodeAuth_AuthReceived;
             authorizationCodeAuth.OpenBrowser();
@@ -30,7 +30,7 @@ namespace FinalCountdown
                 Thread.Sleep(1000);
             }
             authorizationCodeAuth.Stop();
-            if (_auth.Error != null)
+            if (_auth.Error != null || _auth.Code == null)
             {
                 Log("Authorization failed!");
                 Log(_auth.Error);
@@ -80,8 +80,7 @@ namespace FinalCountdown
                 var response = await httpClient.PostAsync("", new FormUrlEncodedContent(new Dictionary<string, string>
                 {
                     { "grant_type", "authorization_code" },
-                    { "code", _auth.Code },
-                    { "redirect_uri", "http://localhost:8800" }
+                    { "code", _auth.Code }
                 }));
                 return JsonConvert.DeserializeObject<Token>(await response.Content.ReadAsStringAsync());
             }
