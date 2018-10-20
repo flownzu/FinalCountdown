@@ -1,5 +1,11 @@
-﻿using SpotifyAPI.Local;
+﻿using Newtonsoft.Json;
+using SpotifyAPI.Web;
+using SpotifyAPI.Web.Auth;
+using SpotifyAPI.Web.Enums;
+using SpotifyAPI.Web.Models;
 using System;
+using System.Collections.Generic;
+using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -7,76 +13,100 @@ namespace FinalCountdown
 {
     class Program
     {
-        private static SpotifyLocalAPI _spotifyLocalAPI = new SpotifyLocalAPI();
+        private static SpotifyWebAPI _spotifyWebAPI;
+        private static AuthorizationCode _auth;
+        private static Token _token;
+        private static string _refreshToken;
+
         static async Task Main(string[] args)
         {
-            Log("Waiting until 31.12. 23:54...");
-            while (true)
+            AuthorizationCodeAuth authorizationCodeAuth = new AuthorizationCodeAuth(args[0], args[1], "http://localhost:8800", "http://localhost:8800", Scope.Streaming);
+            authorizationCodeAuth.Start();
+            authorizationCodeAuth.AuthReceived += AuthorizationCodeAuth_AuthReceived;
+            authorizationCodeAuth.OpenBrowser();
+            Log("Waiting for auth to finish...");
+            while (_auth == null)
             {
-                var time = DateTime.Now;
-                if (time.Day == 31 && time.Month == 12 && time.Hour == 23 && time.Minute == 54)
-                {
-                    await ConnectToSpotify();
-                    break;
-                }
                 Thread.Sleep(1000);
             }
-            Console.WriteLine("Press any key to close...");
-            Console.Read();
-        }
-
-        static async Task RunSpotify()
-        {
-            Log("Running Spotify...");
-            SpotifyLocalAPI.RunSpotify();
-            Log("Giving Spotify 10 seconds to start up...");
-            await Task.Delay(10000);
-            if (!SpotifyLocalAPI.IsSpotifyWebHelperRunning())
+            authorizationCodeAuth.Stop();
+            if (_auth.Error != null)
             {
-                Log("Starting WebHelper...");
-                SpotifyLocalAPI.RunSpotifyWebHelper();
-                await Task.Delay(1000);
+                Log("Authorization failed!");
+                Log(_auth.Error);
             }
-        }
-
-        static async Task ConnectToSpotify()
-        {
-            if (!SpotifyLocalAPI.IsSpotifyRunning()) await RunSpotify();
-            Log("Connecting to local Spotify Client...");
-            if (_spotifyLocalAPI.Connect())
+            else
             {
-                Log("Connected to local Spotify Client.");
-                Log("Waiting for the right time...", false);
-                int i = 0;
-                while (true)
+                Log("Authorization granted!");
+                _token = await GetToken(args);
+                if (_token.Error != null)
                 {
-                    i++;
-                    var time = DateTime.Now;
-                    time = time.AddTicks(-(time.Ticks % TimeSpan.TicksPerSecond));
-                    if (time == new DateTime(2017, 12, 31, 23, 54, 49))
+                    Log("Failed to get access token!");
+                    Log(_token.Error);
+                }
+                else
+                {
+                    _refreshToken = _token.RefreshToken;
+                    Log("Access granted!");
+                    var refreshTokenTimer = new Timer(new TimerCallback(RefreshToken), args, (int)_token.ExpiresIn * 1000, (int)_token.ExpiresIn * 1000);
+                    Log("Waiting until 31.12. 23:54:49...");
+                    _spotifyWebAPI = new SpotifyWebAPI
                     {
-                        Console.WriteLine();
-                        await FinalCountdown();
-                        return;
-                    }
-                    else
+                        AccessToken = _token.AccessToken,
+                        TokenType = _token.TokenType,
+                    };
+                    while (true)
                     {
-                        if (i == 10)
+                        var time = DateTime.Now;
+                        if (time.Day == 20 && time.Month == 10 && time.Hour == 23 && time.Minute == 54 && time.Second == 49)
                         {
-                            i = 0;
-                            Console.Write(".");
+                            Log("Executing the Final Countdown!");
+                            _spotifyWebAPI.ResumePlayback(contextUri: "spotify:user:spoing01:playlist:3EjJLY2xPFSjN1JHjl8GqL", offset: 2);
+                            break;
                         }
-                        Thread.Sleep(100);
+                        Thread.Sleep(500);
                     }
+                    Log("Press any key to close...");
+                    Console.Read();
                 }
             }
-            else Log("Could not connect to local Spotify Client.");
         }
 
-        static async Task FinalCountdown()
+        private static async Task<Token> GetToken(string[] args)
         {
-            Log("Executing The Final Countdown!");
-            await _spotifyLocalAPI.PlayURL("spotify:track:498SE5YbgSuUgXKKe7BaA5", "spotify:user:spoing01:playlist:3EjJLY2xPFSjN1JHjl8GqL");
+            Log("Getting access and refresh token...");
+            using (var httpClient = new SpotifyTokenHttpClient(args))
+            {
+                var response = await httpClient.PostAsync("", new FormUrlEncodedContent(new Dictionary<string, string>
+                {
+                    { "grant_type", "authorization_code" },
+                    { "code", _auth.Code },
+                    { "redirect_uri", "http://localhost:8800" }
+                }));
+                return JsonConvert.DeserializeObject<Token>(await response.Content.ReadAsStringAsync());
+            }
+        }
+
+        private static async void RefreshToken(object state)
+        {
+            Log("Refreshing token...");
+            using (var httpClient = new SpotifyTokenHttpClient(state as string[]))
+            {
+                var response = await httpClient.PostAsync("", new FormUrlEncodedContent(new Dictionary<string, string>
+                {
+                    { "grant_type", "refresh_token" },
+                    { "refresh_token", _refreshToken }
+                }));
+                _token = JsonConvert.DeserializeObject<Token>(await response.Content.ReadAsStringAsync());
+                _spotifyWebAPI.AccessToken = _token.AccessToken;
+                _spotifyWebAPI.TokenType = _token.TokenType;
+            }
+            Log("Token refreshed!");
+        }
+
+        private static void AuthorizationCodeAuth_AuthReceived(object sender, AuthorizationCode payload)
+        {
+            _auth = payload;
         }
 
         static void Log(string msg, bool newLine = true) => Console.Write("[" + DateTime.Now + "] " + msg + (newLine ? Environment.NewLine : ""));
