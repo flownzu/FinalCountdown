@@ -58,7 +58,7 @@ namespace FinalCountdown
                     while (true)
                     {
                         var time = DateTime.Now;
-                        if (time.Day == 20 && time.Month == 10 && time.Hour == 23 && time.Minute == 54 && time.Second == 49)
+                        if (time.Day == 31 && time.Month == 12 && time.Hour == 23 && time.Minute == 54 && time.Second == 49)
                         {
                             Log("Executing the Final Countdown!");
                             _spotifyWebAPI.ResumePlayback(contextUri: "spotify:user:spoing01:playlist:3EjJLY2xPFSjN1JHjl8GqL", offset: 2);
