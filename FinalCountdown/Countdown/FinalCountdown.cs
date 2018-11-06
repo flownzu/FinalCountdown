@@ -55,7 +55,7 @@ namespace FinalCountdown.Countdown
             {
                 _isRunning = true;
                 OnCountdownStarted();
-                // In Debug use the song should be played 10secs from when you start the countdown
+                // in debug mode the song should be played 10secs from when you start the countdown (basically for testing purposes)
 #if DEBUG
                 var time = DateTime.Now.Add(TimeSpan.FromSeconds(10));
                 Day = time.DayOfYear;
@@ -69,12 +69,12 @@ namespace FinalCountdown.Countdown
                     if (currentTime.DayOfYear >= Day && currentTime.Hour == Hour && currentTime.Minute == Minute && currentTime.Second == Second)
                     {
                         OnTheFinalCountdown();
-                        // If the user chose a playlist to play the song in the song is played from the playlist
+                        // If the user chose a playlist to play the song, the song is played from the playlist
                         if (!string.IsNullOrEmpty(ContextUri))
                         {
                             await _webHandler.PlayTrack(contextUri: ContextUri, offset: Offset);
                         }
-                        // otherwise the song is played normally (not recommended due to it repeting after it is done!)
+                        // otherwise the song is played normally (not recommended due to it repeating after it is done!)
                         else await _webHandler.PlayTrack(trackUris: new List<string>() { "spotify:track:498SE5YbgSuUgXKKe7BaA5" });
                         break;
                     }

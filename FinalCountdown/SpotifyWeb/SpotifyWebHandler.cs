@@ -25,10 +25,12 @@ namespace FinalCountdown.SpotifyWeb
 
         public async Task GetAuthorization()
         {
+            // Start new AuthorizationCode Auth with my web-server as redirect-uri
             AuthorizationCodeAuth authorizationCodeAuth = new AuthorizationCodeAuth("http://flownzu.com/FinalCountdown/auth", "http://localhost:8800", Scope.Streaming, "123");
             authorizationCodeAuth.Start();
             authorizationCodeAuth.AuthReceived += AuthorizationCodeAuth_AuthReceived;
             authorizationCodeAuth.OpenBrowser();
+            // Wait for auth to finish
             while (_auth == null)
             {
                 await Task.Delay(1000);
@@ -51,6 +53,7 @@ namespace FinalCountdown.SpotifyWeb
                     { "grant_type", "authorization_code" },
                     { "code", _auth.Code }
                 }));
+                // Get the token and refresh token from response and initialize the refreshTokenTimer that automatically refreshes the token
                 _token = JsonConvert.DeserializeObject<Token>(await response.Content.ReadAsStringAsync());
                 _refreshToken = _token.RefreshToken;
                 if (_refreshTokenTimer != null)
@@ -71,6 +74,8 @@ namespace FinalCountdown.SpotifyWeb
                     { "grant_type", "refresh_token" },
                     { "refresh_token", _refreshToken }
                 }));
+                // Get the token from the refresh token response
+                // The refresh token does not need to be updated as it can be used again
                 _token = JsonConvert.DeserializeObject<Token>(await response.Content.ReadAsStringAsync());
                 _spotifyWebAPI.AccessToken = _token.AccessToken;
                 _spotifyWebAPI.TokenType = _token.TokenType;
@@ -92,6 +97,7 @@ namespace FinalCountdown.SpotifyWeb
 
         public async Task<PrivateProfile> GetUserProfile()
         {
+            // get the users private profile (display username etc)
             _spotifyWebAPI.WebClient.EmptyHeaders();
             return await _spotifyWebAPI.GetPrivateProfileAsync();
         }
@@ -100,10 +106,12 @@ namespace FinalCountdown.SpotifyWeb
         {
             _spotifyWebAPI.WebClient.EmptyHeaders();
             var playlistPages = await _spotifyWebAPI.GetUserPlaylistsAsync(userId);
+            // if the response has 0 items initialize an empty collection otherwise initialize the collection with the items from the first response
             List<SimplePlaylist> playlistList = playlistPages.Items != null ? new List<SimplePlaylist>(playlistPages.Items) : new List<SimplePlaylist>();
             while (playlistPages.HasNextPage())
             {
                 _spotifyWebAPI.WebClient.EmptyHeaders();
+                // get next page and add the items to collection
                 playlistPages = await _spotifyWebAPI.GetNextPageAsync(playlistPages);
                 playlistList.AddRange(playlistPages.Items);
             }
@@ -114,6 +122,7 @@ namespace FinalCountdown.SpotifyWeb
         {
             _spotifyWebAPI.WebClient.EmptyHeaders();
             var trackPages = await _spotifyWebAPI.GetPlaylistTracksAsync(userId, playlistId);
+            // basically the same as GetPlaylists code except with tracks
             List<PlaylistTrack> playlistTracks = trackPages.Items != null ? new List<PlaylistTrack>(trackPages.Items) : new List<PlaylistTrack>();
             while (trackPages.HasNextPage())
             {
